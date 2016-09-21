@@ -7,6 +7,7 @@
 Note: All of the information being queried may not be present
 """
 
+import inspect
 import volatility.addrspace as addrspace
 import volatility.debug as debug
 import volatility.obj as obj
@@ -21,6 +22,7 @@ import struct
 
 class RegThings(common.AbstractWindowsCommand):
     "Print some things from a registry"
+
 
     def __init__(self, config, *args, **kwargs):
         common.AbstractWindowsCommand.__init__(self, config, *args, **kwargs)
@@ -54,7 +56,17 @@ class RegThings(common.AbstractWindowsCommand):
 
         sub_keys = self.regapi.reg_get_all_subkeys('SYSTEM', USB_STOR_PATH, given_root=key)
         for k in sub_keys:
+            debug.info("Vendor / Brand / Rev: {0}".format(str(k.Name)))
             results['subkeys'].append(str(k.Name))
+            usb_devs = self.regapi.reg_get_all_subkeys('SYSTEM', k, given_root=k)
+            for dev in usb_devs:
+                debug.info("Serial Number: {0}".format(dev.Name))
+                values = self.regapi.reg_yield_values('SYSTEM', dev, given_root=dev)
+                debug.info("Device Values")
+                for val in values:
+                    key_name = val[0]
+                    key_data = val[1]
+                    debug.info('Key: {0}\t Data: {1}'.format(key_name, key_data))
 
 
 
