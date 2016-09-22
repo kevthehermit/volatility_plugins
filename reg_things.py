@@ -6,7 +6,7 @@
 """
 Note: All of the information being queried may not be present
 """
-
+import string
 import volatility.addrspace as addrspace
 import volatility.debug as debug
 import volatility.obj as obj
@@ -26,6 +26,17 @@ class USBSTOR(common.AbstractWindowsCommand):
     def __init__(self, config, *args, **kwargs):
         common.AbstractWindowsCommand.__init__(self, config, *args, **kwargs)
         self.regapi = None
+
+    def string_clean_hex(self, line):
+        line = str(line)
+        new_line = ''
+        for c in line:
+            if c in string.printable:
+                new_line += c
+            else:
+                new_line += '\\x' + c.encode('hex')
+        return new_line
+
 
     def calculate(self):
         addr_space = utils.load_as(self._config)
@@ -51,6 +62,9 @@ class USBSTOR(common.AbstractWindowsCommand):
         usb_key = self.regapi.reg_get_key('SYSTEM', USB_PATH)
         USB_STOR_PATH = '{0}\\Enum\\USBSTOR'.format(currentcs)
         usb_stor_key = self.regapi.reg_get_key('SYSTEM', USB_STOR_PATH)
+
+
+
 
 
         if usb_stor_key == None:
@@ -87,13 +101,16 @@ class USBSTOR(common.AbstractWindowsCommand):
                 # Get all the sub values
                 values = self.regapi.reg_yield_values('SYSTEM', dev, given_root=dev)
                 for val in values:
-                    key_name = val[0]
-                    key_data = val[1]
-                    usb_info_dict[key_name] = key_data
+                    try:
+                        key_name = val[0].replace('\x00', '')
+                        key_data = val[1].replace('\x00', '')
+                        usb_info_dict[str(key_name)] = key_data
+                    except AttributeError:
+                        key_name = val[0].replace('\x00', '')
+                        key_data = val[1]
+                        usb_info_dict[str(key_name)] = key_data
 
-                # Now get the Drive letters if we can
-
-
+            
                 # Get the last written key for each device
 
                 serial_number = usb_info_dict['Serial Number']
@@ -105,12 +122,42 @@ class USBSTOR(common.AbstractWindowsCommand):
                             usb_info_dict['Device Last Plugged In'] = s.LastWriteTime
 
 
+
+                # Now get the Drive letters if we can
+                MOUNTED_DEVICES = 'MountedDevices'
+                mounted_devices_key = self.regapi.reg_get_key('SYSTEM', MOUNTED_DEVICES)
+                debug.info(usb_info_dict)
+                ParentID = usb_info_dict['ParentIdPrefix']
+                
+
+                values = self.regapi.reg_yield_values('SYSTEM', mounted_devices_key, given_root=mounted_devices_key)
+                for val in values:
+                    key_name = val[0]
+                    key_data = val[1]
+                    key_data = key_data.replace('\x00', '')
+                    key_data = self.string_clean_hex(key_data)
+                    #debug.info(key_data)
+                    #debug.info(key_data.encode('hex'))
+                    if ParentID in key_data:
+                        if 'Device' in str(key_name):
+                            usb_info_dict['Drive Letter'] = key_name
+                        else:
+                            usb_info_dict['Drive Letter'] = "Unknown"
+                        if 'Volume' in str(key_name):
+                            usb_info_dict['Mounted Volume'] = key_name
+                        else:
+                            usb_info_dict['Mounted Volume'] = "Unknown"
+                        
+                    
+                    #usb_info_dict[key_name] = key_data
+
+
                 # Check if the current NTUSER.dat file contains the MountPoints2 entry
                 # If yes user = this one else user = unknown
 
 
 
-            results['USB_DEVICES'].append(usb_info_dict)
+        results['USB_DEVICES'].append(usb_info_dict)
 
 
 
@@ -157,4 +204,3 @@ class USBSTOR(common.AbstractWindowsCommand):
 
 
         outfd.write('\n')
-
