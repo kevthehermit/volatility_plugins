@@ -86,7 +86,6 @@ class USBSTOR(common.AbstractWindowsCommand):
 
                 # Get all the sub values
                 values = self.regapi.reg_yield_values('SYSTEM', dev, given_root=dev)
-                debug.info("Device Values")
                 for val in values:
                     key_name = val[0]
                     key_data = val[1]
