@@ -41,8 +41,16 @@ class USBSTOR(common.AbstractWindowsCommand):
     def calculate(self):
         addr_space = utils.load_as(self._config)
         self.regapi = registryapi.RegistryApi(self._config)
-        self.regapi.set_current("SYSTEM")
+
+        self.regapi.set_current("SOFTWARE")
+
+        WIN_VERSION_PATH = "Microsoft\\Windows NT\\CurrentVersion"
+        WIN_VER = self.regapi.reg_get_value(hive_name="software", key=WIN_VERSION_PATH, value="CurrentVersion")
+        debug.info("Windows Version: {0}".format(WIN_VER))
+
         self.regapi.reset_current()
+        self.regapi.set_current("SYSTEM")
+
         currentcs = self.regapi.reg_get_currentcontrolset()
 
         if currentcs == None:
@@ -58,6 +66,7 @@ class USBSTOR(common.AbstractWindowsCommand):
         results['USB_DEVICES'] = []
 
 
+        debug.info(WIN_VER)
         USB_PATH = '{0}\\Enum\\USB'.format(currentcs)
         usb_key = self.regapi.reg_get_key('SYSTEM', USB_PATH)
         USB_STOR_PATH = '{0}\\Enum\\USBSTOR'.format(currentcs)
@@ -127,33 +136,42 @@ class USBSTOR(common.AbstractWindowsCommand):
 
 
                     # Now get the Drive letters if we can
-                    MOUNTED_DEVICES = 'MountedDevices'
-                    mounted_devices_key = self.regapi.reg_get_key('SYSTEM', MOUNTED_DEVICES)
-                    ParentID = usb_info_dict['ParentIdPrefix']
 
 
-                    values = self.regapi.reg_yield_values('SYSTEM', mounted_devices_key, given_root=mounted_devices_key)
-                    for val in values:
-                        key_name = val[0]
-                        key_data = val[1]
-                        key_data = key_data.replace('\x00', '')
-                        key_data = self.string_clean_hex(key_data)
-                        #debug.info(key_data)
-                        #debug.info(key_data.encode('hex'))
-                        usb_info_dict['Drive Letter'] = "Unknown"
-                        usb_info_dict['Mounted Volume'] = "Unknown"
-                        if ParentID in key_data:
-                            if 'Device' in str(key_name):
-                                usb_info_dict['Drive Letter'] = key_name
-                            elif 'Volume' in str(key_name):
-                                usb_info_dict['Mounted Volume'] = key_name
+                    if WIN_VER >= 6.0:
+                        # Win > 7, Server > 2012
+                        pass
+
+                    if WIN_VER < 6.0:
+                        # Win XP
+
+                        MOUNTED_DEVICES = 'MountedDevices'
+                        mounted_devices_key = self.regapi.reg_get_key('SYSTEM', MOUNTED_DEVICES)
+                        ParentID = usb_info_dict['ParentIdPrefix']
 
 
-                        #usb_info_dict[key_name] = key_data
+                        values = self.regapi.reg_yield_values('SYSTEM', mounted_devices_key, given_root=mounted_devices_key)
+                        for val in values:
+                            key_name = val[0]
+                            key_data = val[1]
+                            key_data = key_data.replace('\x00', '')
+                            key_data = self.string_clean_hex(key_data)
+                            #debug.info(key_data)
+                            #debug.info(key_data.encode('hex'))
+                            usb_info_dict['Drive Letter'] = "Unknown"
+                            usb_info_dict['Mounted Volume'] = "Unknown"
+                            if ParentID in key_data:
+                                if 'Device' in str(key_name):
+                                    usb_info_dict['Drive Letter'] = key_name
+                                elif 'Volume' in str(key_name):
+                                    usb_info_dict['Mounted Volume'] = key_name
 
 
-                    # Check if the current NTUSER.dat file contains the MountPoints2 entry
-                    # If yes user = this one else user = unknown
+                            #usb_info_dict[key_name] = key_data
+
+
+                        # Check if the current NTUSER.dat file contains the MountPoints2 entry
+                        # If yes user = this one else user = unknown
 
 
 
