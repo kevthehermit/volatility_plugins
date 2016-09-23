@@ -39,6 +39,12 @@ class USBSTOR(common.AbstractWindowsCommand):
 
 
     def calculate(self):
+        # Store teh results in a dict
+        results = {}
+        results['Windows Portable Devices'] = []
+        results['subkeys'] = []
+        results['USB_DEVICES'] = []
+
         addr_space = utils.load_as(self._config)
         self.regapi = registryapi.RegistryApi(self._config)
 
@@ -46,7 +52,13 @@ class USBSTOR(common.AbstractWindowsCommand):
 
         WIN_VERSION_PATH = "Microsoft\\Windows NT\\CurrentVersion"
         WIN_VER = self.regapi.reg_get_value(hive_name="software", key=WIN_VERSION_PATH, value="CurrentVersion")
+        WIN_VER = float(WIN_VER.replace('\x00', ''))
         debug.info("Windows Version: {0}".format(WIN_VER))
+
+        # Grab 2 gives now, save for later
+        PORTABLE_DEVICES = "Microsoft\\Windows Portable Devices\\Devices"
+        portable_devices_key = self.regapi.reg_get_key('SOFTWARE', PORTABLE_DEVICES)
+        portable_devices = self.regapi.reg_get_all_subkeys('SOFTWARE', PORTABLE_DEVICES, given_root=portable_devices_key)
 
         self.regapi.reset_current()
         self.regapi.set_current("SYSTEM")
@@ -60,10 +72,7 @@ class USBSTOR(common.AbstractWindowsCommand):
 
         # RESET the API
         self.regapi.reset_current()
-        # Store teh results in a dict
-        results = {}
-        results['subkeys'] = []
-        results['USB_DEVICES'] = []
+
 
 
         debug.info(WIN_VER)
@@ -71,7 +80,8 @@ class USBSTOR(common.AbstractWindowsCommand):
         usb_key = self.regapi.reg_get_key('SYSTEM', USB_PATH)
         USB_STOR_PATH = '{0}\\Enum\\USBSTOR'.format(currentcs)
         usb_stor_key = self.regapi.reg_get_key('SYSTEM', USB_STOR_PATH)
-
+        MOUNTED_DEVICES = 'MountedDevices'
+        mounted_devices_key = self.regapi.reg_get_key('SYSTEM', MOUNTED_DEVICES)
 
 
 
@@ -140,16 +150,43 @@ class USBSTOR(common.AbstractWindowsCommand):
 
                     if WIN_VER >= 6.0:
                         # Win > 7, Server > 2012
-                        pass
+
+                        # Portable Devices Key
+                        for device in portable_devices:
+                            portable_dict = {'Serial Number':'', 'FriendlyName':''}
+                            values = self.regapi.reg_yield_values('SOFTWARE', device, given_root=device)
+                            for val in values:
+                                device_name = str(device.Name)
+                                portable_dict['Serial Number'] = device_name.split('#')[-2]
+                                portable_dict['FriendlyName'] = val[1].replace('\x00', '')
+                                results['Windows Portable Devices'].append(portable_dict)
+                                debug.info(results['Windows Portable Devices'])
+
+
+                        # Mounted Devices Key
+                        SerialNumber = usb_info_dict['Serial Number']
+                        usb_info_dict['Drive Letter'] = "Unknown"
+                        usb_info_dict['Mounted Volume'] = "Unknown"
+                        values = self.regapi.reg_yield_values('SYSTEM', mounted_devices_key, given_root=mounted_devices_key)
+                        for val in values:
+                            key_name = val[0]
+                            key_data = val[1]
+                            key_data = key_data.replace('\x00', '')
+                            key_data = self.string_clean_hex(key_data)
+                            if SerialNumber in str(key_data):
+                                if 'Device' in str(key_name):
+                                    usb_info_dict['Drive Letter'] = key_name
+                                elif 'Volume' in str(key_name):
+                                    usb_info_dict['Mounted Volume'] = key_name
+                            if SerialNumber in portable_dict['Serial Number']:
+                                usb_info_dict['USB Name'] = portable_dict['FriendlyName']
+
 
                     if WIN_VER < 6.0:
                         # Win XP
-
-                        MOUNTED_DEVICES = 'MountedDevices'
-                        mounted_devices_key = self.regapi.reg_get_key('SYSTEM', MOUNTED_DEVICES)
                         ParentID = usb_info_dict['ParentIdPrefix']
-
-
+                        usb_info_dict['Drive Letter'] = "Unknown"
+                        usb_info_dict['Mounted Volume'] = "Unknown"
                         values = self.regapi.reg_yield_values('SYSTEM', mounted_devices_key, given_root=mounted_devices_key)
                         for val in values:
                             key_name = val[0]
@@ -157,9 +194,6 @@ class USBSTOR(common.AbstractWindowsCommand):
                             key_data = key_data.replace('\x00', '')
                             key_data = self.string_clean_hex(key_data)
                             #debug.info(key_data)
-                            #debug.info(key_data.encode('hex'))
-                            usb_info_dict['Drive Letter'] = "Unknown"
-                            usb_info_dict['Mounted Volume'] = "Unknown"
                             if ParentID in key_data:
                                 if 'Device' in str(key_name):
                                     usb_info_dict['Drive Letter'] = key_name
