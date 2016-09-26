@@ -5,8 +5,8 @@ Scans registries for values relating to USB devices plugged in to the system.
 
 ## Authors:
 
-Kevin Breen
-James Hall
+ - Kevin Breen
+ - James Hall
 
 ## Usage:
 
