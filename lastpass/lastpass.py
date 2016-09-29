@@ -1,20 +1,5 @@
-# JavaRAT detection and analysis for Volatility - v 1.0
-# This version is limited to JavaRAT's clients 3.0 and 3.1, and maybe others
-# Author: Brian Baskin <brian@thebaskins.com>
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or (at
-# your option) any later version.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+# Author: Kevin Breen
+# Thanks to the guide on http://www.ghettoforensics.com/2013/10/dumping-malware-configuration-data-from.html
 
 import volatility.plugins.taskmods as taskmods
 import volatility.win32.tasks as tasks
@@ -63,7 +48,7 @@ class LastPass(taskmods.PSList):
         for task in self.filter_tasks(tasks.pslist(addr_space)):
             if not task.ImageFileName.lower() in ['chrome.exe', 'firefox.exe', 'iexplore.exe']:
                 continue
-            scanner = malfind.VadYaraScanner(task = task, rules = rules)
+            scanner = malfind.VadYaraScanner(task=task, rules=rules)
             for hit, address in scanner.scan():
                 vad_base_addr = self.get_vad_base(task, address)
                 yield task, address
