@@ -55,6 +55,7 @@ class USBSTOR(common.AbstractWindowsCommand):
             values = self.regapi.reg_yield_values('SOFTWARE', device, given_root=device)
             for val in values:
                 device_name = str(device.Name)
+                portable_dict['Last Write Time'] = str(device.LastWriteTime)
                 portable_dict['Serial Number'] = device_name.split('#')[-2]
                 portable_dict['FriendlyName'] = str(val[1].replace('\x00', ''))
                 results['Windows Portable Devices'].append(portable_dict)
@@ -141,6 +142,7 @@ class USBSTOR(common.AbstractWindowsCommand):
                         usb_info_dict['USB Name'] = "Unknown"
                         values = self.regapi.reg_yield_values('SYSTEM', mounted_devices_key,
                                                               given_root=mounted_devices_key)
+
                         for val in values:
                             key_name = str(val[0])
                             key_data = val[1]
@@ -238,7 +240,7 @@ class USBSTOR(common.AbstractWindowsCommand):
                     ])
                 for portable in result['Windows Portable Devices']:
                     yield (0, [portable['Serial Number'], '', '', '', '', '', '', '', portable['FriendlyName'], '', '',
-                               '', '', '', '', '', '', '', '', '', 'Windows Portable Devices'])
+                               portable['Last Write Time'], '', '', '', '', '', '', '', '', 'Windows Portable Devices'])
 
     # Print to screen
     # I wanted to make it look a little ordered rather than just write each key / val
@@ -283,8 +285,8 @@ class USBSTOR(common.AbstractWindowsCommand):
 
                 outfd.write('Windows Portable Devices\n')
                 for portable in result['Windows Portable Devices']:
+                    outfd.write('\t--\n')
                     for k, v in portable.iteritems():
-                        outfd.write('--')
                         outfd.write('\t{0}:\t{1}\n'.format(k, v))
 
         outfd.write('\n')
