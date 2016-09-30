@@ -32,12 +32,6 @@ config.add_option('YARAOFFSET', short_option='Y', default=0,
 class LastPass(taskmods.PSList):
     """ Extract lastpass data from process. """
 
-    def get_vad_base(self, task, address):
-        for vad in task.VadRoot.traverse():
-            if address >= vad.Start and address < vad.End:
-                return vad.Start
-        return None
-
     def calculate(self):
         """ Required: Runs YARA search to find hits """
         if not has_yara:
@@ -50,7 +44,6 @@ class LastPass(taskmods.PSList):
                 continue
             scanner = malfind.VadYaraScanner(task=task, rules=rules)
             for hit, address in scanner.scan():
-                vad_base_addr = self.get_vad_base(task, address)
                 yield task, address
 
     def clean_json(self, raw_data):
@@ -89,8 +82,7 @@ class LastPass(taskmods.PSList):
         results = {}
 
         for task, address in data:  # iterate the yield values from calculate()
-            outfd.write('{0}\n'.format(delim))
-            outfd.write('Process: {0} ({1})\n\n'.format(task.ImageFileName, task.UniqueProcessId))
+            outfd.write('Checking Process: {0} ({1})\n'.format(task.ImageFileName, task.UniqueProcessId))
             proc_addr_space = task.get_process_address_space()
             raw_data = proc_addr_space.read(address + self._config.YARAOFFSET, self._config.CONFSIZE)
             clean_data = self.clean_json(raw_data)
@@ -113,8 +105,11 @@ class LastPass(taskmods.PSList):
 
                 results[clean_data['tld']] = {'username': username, 'password': password}
 
+        #outfd.write('\n\n\n\n\n')
 
-        outfd.write(str(results))
-        #for k, v in clean_data.iteritems():
-            #outfd.write('{0}:\t{1}\n'.format(k, v))
+        for k, v in results.iteritems():
+            outfd.write("\nFound LastPass Entry for {0}\n".format(k))
+            outfd.write('UserName: {0}\n'.format(v['username']))
+            outfd.write('Pasword: {0}\n'.format(v['password']))
+            outfd.write('\n')
         outfd.write('\n')
