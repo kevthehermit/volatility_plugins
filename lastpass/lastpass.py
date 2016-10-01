@@ -1,3 +1,5 @@
+# Donated under Volatility Foundation, Inc. Individual Contributor Licensing Agreement
+# LastPass - Recover memory resident account information.
 # Author: Kevin Breen
 # Thanks to the guide on http://www.ghettoforensics.com/2013/10/dumping-malware-configuration-data-from.html
 
@@ -9,6 +11,7 @@ import volatility.plugins.malware.malfind as malfind
 import volatility.conf as conf
 import re
 import json
+import string
 
 try:
     import yara
@@ -46,9 +49,21 @@ class LastPass(taskmods.PSList):
             for hit, address in scanner.scan():
                 yield task, address
 
+    def string_clean_hex(self, line):
+        line = str(line)
+        new_line = ''
+        for c in line:
+            if c in string.printable:
+                new_line += c
+            else:
+                new_line += '\\x' + c.encode('hex')
+        return new_line
+
+
     def clean_json(self, raw_data):
         # We deliberatly pull in too much data to make sure we get it all.
         # Now parse it out again
+
 
         if raw_data.startswith("\"tld"):
             pattern = '"tld":".*?","unencryptedUsername":".*?","realmmatch"'
@@ -58,26 +73,30 @@ class LastPass(taskmods.PSList):
             val_type = 'password'
 
         match = re.search(pattern, raw_data)
+        real_data = self.string_clean_hex(match.group(0))
 
         if val_type == 'username':
-            vars = match.group(0).split(',')
+            vars = real_data.split(',')
             tld = vars[0].split(':')[1].strip('"')
             username = vars[1].split(':')[1].strip('"')
             return {'type': 'username', 'username': username, 'tld': tld}
         else:
-            json_data = json.loads(match.group(0))
-            tld = json_data['domains']
-            password = json_data['value']
+            # Try to parse as json
+            try:
+                json_data = json.loads(real_data)
+                tld = json_data['domains']
+                password = json_data['value']
+            except ValueError:
+                # Json fails manual parse
+                password = re.search('"value":"(.*?)"', real_data).group(0).split(':')[-1].strip('"')
+                tld = re.search('"domains":"(.*?)"', real_data).group(0).split(':')[-1].strip('"')
             return {'type': 'password', 'password': password, 'tld': tld}
-
-
 
     def render_text(self, outfd, data):
         """ Required: Parse data and display """
         outfd.write("LastPass Results")
 
-        delim = '-=' * 39 + '-'
-        rules = yara.compile(sources = signatures)
+        rules = yara.compile(sources=signatures)
 
         results = {}
 
@@ -86,7 +105,6 @@ class LastPass(taskmods.PSList):
             proc_addr_space = task.get_process_address_space()
             raw_data = proc_addr_space.read(address + self._config.YARAOFFSET, self._config.CONFSIZE)
             clean_data = self.clean_json(raw_data)
-
 
             if clean_data['tld'] in results:
                 if 'username' in clean_data:
@@ -102,14 +120,10 @@ class LastPass(taskmods.PSList):
                     password = clean_data['password']
                 else:
                     password = 'Unknown'
-
                 results[clean_data['tld']] = {'username': username, 'password': password}
-
-        #outfd.write('\n\n\n\n\n')
 
         for k, v in results.iteritems():
             outfd.write("\nFound LastPass Entry for {0}\n".format(k))
             outfd.write('UserName: {0}\n'.format(v['username']))
             outfd.write('Pasword: {0}\n'.format(v['password']))
-            outfd.write('\n')
         outfd.write('\n')
