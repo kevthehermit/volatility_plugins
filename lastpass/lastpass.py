@@ -138,8 +138,14 @@ class LastPass(taskmods.PSList):
 
                 else:
                     tld = re.search('"url":"(.*?)"', real_data).group(0).split(':')[-1].strip('"')
-                    username = re.search('login(.*?)text', real_data).group(0).split('\\t')[1]
-                    password = re.search('password(.*?)password', real_data).group(0).split('\\t')[1]
+                    try:
+                        username = re.search('login(.*?)text', real_data).group(0).split('\\t')[1]
+                    except:
+                        username = 'Unknown'    
+                    try:
+                        password = re.search('password(.*?)password', real_data).group(0).split('\\t')[1]    
+                    except:
+                        password = 'Unknown'
                     clean_data = {'type': 'mixed', 'username': username, 'tld': tld, 'password': password}
 
                 return clean_data
