@@ -87,3 +87,9 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# Memory samples
+*.mem
+*.raw
+*.img
+*.vmem
