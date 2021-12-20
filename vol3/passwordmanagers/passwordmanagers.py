@@ -1,6 +1,3 @@
-# This file is Copyright 2019 Volatility Foundation and licensed under the Volatility Software License 1.0
-# which is available at https://www.volatilityfoundation.org/license/vsl-v1.0
-#
 import logging
 import re
 from typing import List
@@ -19,7 +16,6 @@ except ImportError:
     vollog.info("Python Yara module not found, plugin (and dependent plugins) not available")
     raise
 
-
 browser_procs = ['chrome.exe', 'firefox.exe', 'iexplore.exe']
 
 signatures = {
@@ -32,14 +28,13 @@ signatures = {
 }
 
 class PasswordManager(interfaces.plugins.PluginInterface):
-    """Lists process command line arguments."""
+    """Scan all processs for browsers and then scan the process memory for any password manager fragments"""
 
     _required_framework_version = (2, 0, 0)
     _version = (1, 0, 0)
 
     @classmethod
     def get_requirements(cls) -> List[interfaces.configuration.RequirementInterface]:
-        # Since we're calling the plugin, make sure we have the plugin's requirements
         return [
             requirements.ModuleRequirement(name = 'kernel', description = 'Windows kernel',
                                                      architectures = ["Intel32", "Intel64"]),
@@ -54,7 +49,7 @@ class PasswordManager(interfaces.plugins.PluginInterface):
 
     @classmethod
     def parse_result(self, rule, value):
-        """Takes a rule name and the raw date from the process and attempts to extract 3 values"""
+        """Takes a rule name and the raw data from the process and attempts to extract 3 values"""
         vollog.debug(rule)
         username = password = domain = None
 
